@@ -25,6 +25,7 @@ import {
   Legend,
   ResponsiveContainer,
   ReferenceLine,
+  Cell,
 } from 'recharts'
 
 // Generate synthetic backtesting data
@@ -264,11 +265,15 @@ export default function BacktestingPage() {
                     <Bar
                       dataKey="variancePercent"
                       name="Variance %"
-                      fill={(entry: any) =>
-                        entry.variancePercent > 0 ? '#ef4444' : '#10b981'
-                      }
                       radius={[4, 4, 4, 4]}
-                    />
+                    >
+                      {backtestData.map((entry, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={entry.variancePercent > 0 ? '#ef4444' : '#10b981'}
+                        />
+                      ))}
+                    </Bar>
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
