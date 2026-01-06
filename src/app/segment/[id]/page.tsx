@@ -586,7 +586,7 @@ export default function SegmentDetailPage() {
                     <th>Loan ID</th>
                     <th>State</th>
                     <th className="text-right">Current Balance</th>
-                    <th className="text-right">Original Amount</th>
+                    <th className="text-right">Original Balance</th>
                     <th className="text-right">PD</th>
                     <th className="text-right">LGD</th>
                     <th className="text-right">ECL</th>
@@ -599,7 +599,7 @@ export default function SegmentDetailPage() {
                       <td className="font-mono text-sm">{loan.loanId.slice(0, 8)}...</td>
                       <td>{loan.state}</td>
                       <td className="text-right font-mono">{formatCurrency(loan.currentBalance)}</td>
-                      <td className="text-right font-mono">{formatCurrency(loan.originalAmount)}</td>
+                      <td className="text-right font-mono">{formatCurrency(loan.originalBalance)}</td>
                       <td className="text-right font-mono metric-pd">{formatPercent(loan.pd)}</td>
                       <td className="text-right font-mono metric-lgd">{formatPercent(loan.lgd)}</td>
                       <td className="text-right font-mono">{formatCurrency(loan.ecl)}</td>
