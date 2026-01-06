@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { Header } from '@/components/layout/Header'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -17,27 +18,9 @@ import {
 import Link from 'next/link'
 import { formatPercent, formatCurrency, formatCompactNumber } from '@/lib/utils'
 import { AnimatedNumber, StaggeredContainer, StaggeredItem } from '@/components/animations'
-
-// Mock summary data
-const summaryMetrics = {
-  totalExposure: 2450000000,
-  portfolioCount: 5000,
-  avgPD: 0.042,
-  avgLGD: 0.38,
-  totalExpectedLoss: 39690000,
-  pdChange: 0.003,
-  lgdChange: -0.02,
-  chargeOffRate: 0.018,
-}
-
-const riskSegments = [
-  { name: 'CRE Non-Owner', pd: 0.045, lgd: 0.42, exposure: 520000000, status: 'warning' },
-  { name: '1-4 Family', pd: 0.018, lgd: 0.28, exposure: 680000000, status: 'good' },
-  { name: 'C&I', pd: 0.058, lgd: 0.52, exposure: 380000000, status: 'warning' },
-  { name: 'Consumer', pd: 0.092, lgd: 0.58, exposure: 210000000, status: 'alert' },
-  { name: 'Construction', pd: 0.072, lgd: 0.55, exposure: 190000000, status: 'alert' },
-  { name: 'Auto', pd: 0.038, lgd: 0.42, exposure: 180000000, status: 'good' },
-]
+import { getLoans, getSnapshots } from '@/data/loans'
+import { SEGMENT_CONFIG } from '@/data/segments'
+import type { LoanSegment } from '@/types'
 
 const recentAlerts = [
   { message: 'Construction PD increased 15% in Q4', severity: 'high' },
@@ -163,6 +146,101 @@ function QuickLinkCard({
 }
 
 export default function DashboardPage() {
+  // Get actual loan data
+  const loans = useMemo(() => getLoans(), [])
+  const snapshots = useMemo(() => getSnapshots(), [])
+
+  // Calculate summary metrics from actual data
+  const summaryMetrics = useMemo(() => {
+    const totalExposure = loans.reduce((sum, loan) => sum + loan.currentBalance, 0)
+    const portfolioCount = loans.length
+
+    // Get latest snapshots for each loan to calculate averages
+    const latestSnapshots = new Map<string, typeof snapshots[0]>()
+    snapshots.forEach(snapshot => {
+      const existing = latestSnapshots.get(snapshot.loanId)
+      if (!existing || snapshot.snapshotDate > existing.snapshotDate) {
+        latestSnapshots.set(snapshot.loanId, snapshot)
+      }
+    })
+
+    const snapshotValues = Array.from(latestSnapshots.values())
+    const avgPD = snapshotValues.length > 0
+      ? snapshotValues.reduce((sum, s) => sum + s.pd, 0) / snapshotValues.length
+      : 0
+    const avgLGD = snapshotValues.length > 0
+      ? snapshotValues.reduce((sum, s) => sum + s.lgd, 0) / snapshotValues.length
+      : 0
+    const totalExpectedLoss = snapshotValues.reduce((sum, s) => sum + s.expectedLoss, 0)
+
+    const chargedOffLoans = loans.filter(l => l.isChargedOff)
+    const chargeOffRate = loans.length > 0 ? chargedOffLoans.length / loans.length : 0
+
+    return {
+      totalExposure,
+      portfolioCount,
+      avgPD,
+      avgLGD,
+      totalExpectedLoss,
+      pdChange: 0.003, // Would need historical comparison
+      lgdChange: -0.02, // Would need historical comparison
+      chargeOffRate,
+    }
+  }, [loans, snapshots])
+
+  // Calculate segment-level metrics from actual data
+  const riskSegments = useMemo(() => {
+    const segmentMap = new Map<LoanSegment, { loans: typeof loans; pds: number[]; lgds: number[] }>()
+
+    // Get latest snapshot PD/LGD for each loan
+    const latestSnapshots = new Map<string, typeof snapshots[0]>()
+    snapshots.forEach(snapshot => {
+      const existing = latestSnapshots.get(snapshot.loanId)
+      if (!existing || snapshot.snapshotDate > existing.snapshotDate) {
+        latestSnapshots.set(snapshot.loanId, snapshot)
+      }
+    })
+
+    // Group loans by segment
+    loans.forEach(loan => {
+      if (!segmentMap.has(loan.segment)) {
+        segmentMap.set(loan.segment, { loans: [], pds: [], lgds: [] })
+      }
+      const segmentData = segmentMap.get(loan.segment)!
+      segmentData.loans.push(loan)
+
+      const snapshot = latestSnapshots.get(loan.loanId)
+      if (snapshot) {
+        segmentData.pds.push(snapshot.pd)
+        segmentData.lgds.push(snapshot.lgd)
+      }
+    })
+
+    // Calculate metrics for each segment
+    return Array.from(segmentMap.entries())
+      .map(([segment, data]) => {
+        const config = SEGMENT_CONFIG[segment]
+        const exposure = data.loans.reduce((sum, loan) => sum + loan.currentBalance, 0)
+        const avgPD = data.pds.length > 0 ? data.pds.reduce((a, b) => a + b, 0) / data.pds.length : config.pd.avg
+        const avgLGD = data.lgds.length > 0 ? data.lgds.reduce((a, b) => a + b, 0) / data.lgds.length : config.lgd.avg
+
+        // Determine risk status based on PD
+        let status: 'good' | 'warning' | 'alert' = 'good'
+        if (avgPD > 0.06) status = 'alert'
+        else if (avgPD > 0.04) status = 'warning'
+
+        return {
+          name: config.label,
+          pd: avgPD,
+          lgd: avgLGD,
+          exposure,
+          status,
+        }
+      })
+      .sort((a, b) => b.exposure - a.exposure)
+      .slice(0, 6) // Top 6 segments by exposure
+  }, [loans, snapshots])
+
   return (
     <div className="min-h-screen">
       <Header
@@ -250,7 +328,7 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <StaggeredContainer className="space-y-3">
-                  {riskSegments.map((segment, index) => (
+                  {riskSegments.map((segment) => (
                     <StaggeredItem key={segment.name}>
                       <motion.div
                         className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors"
