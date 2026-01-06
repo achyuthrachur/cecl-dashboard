@@ -20,7 +20,7 @@ import { formatPercent, formatCurrency, formatCompactNumber } from '@/lib/utils'
 import { AnimatedNumber, StaggeredContainer, StaggeredItem } from '@/components/animations'
 import { getLoans, getSnapshots } from '@/data/loans'
 import { SEGMENT_CONFIG } from '@/data/segments'
-import type { LoanSegment } from '@/types'
+import type { LoanSegment, LoanMetricsSnapshot, Loan } from '@/types'
 
 const recentAlerts = [
   { message: 'Construction PD increased 15% in Q4', severity: 'high' },
@@ -156,7 +156,7 @@ export default function DashboardPage() {
     const portfolioCount = loans.length
 
     // Get latest snapshots for each loan to calculate averages
-    const latestSnapshots = new Map<string, typeof snapshots[0]>()
+    const latestSnapshots = new Map<string, LoanMetricsSnapshot>()
     snapshots.forEach(snapshot => {
       const existing = latestSnapshots.get(snapshot.loanId)
       if (!existing || snapshot.snapshotDate > existing.snapshotDate) {
@@ -190,10 +190,10 @@ export default function DashboardPage() {
 
   // Calculate segment-level metrics from actual data
   const riskSegments = useMemo(() => {
-    const segmentMap = new Map<LoanSegment, { loans: typeof loans; pds: number[]; lgds: number[] }>()
+    const segmentMap = new Map<LoanSegment, { loans: Loan[]; pds: number[]; lgds: number[] }>()
 
     // Get latest snapshot PD/LGD for each loan
-    const latestSnapshots = new Map<string, typeof snapshots[0]>()
+    const latestSnapshots = new Map<string, LoanMetricsSnapshot>()
     snapshots.forEach(snapshot => {
       const existing = latestSnapshots.get(snapshot.loanId)
       if (!existing || snapshot.snapshotDate > existing.snapshotDate) {
