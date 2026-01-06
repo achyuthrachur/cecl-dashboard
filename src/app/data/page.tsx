@@ -5,7 +5,7 @@ import { motion } from 'framer-motion'
 import { Database, FileSpreadsheet, TrendingUp, AlertCircle, Layers, MapPin } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { DataGrid, type Column } from '@/components/data-viewer'
-import { generateLoans, generateQuarterlySnapshots, generateChargeOffHistories } from '@/data/loans'
+import { generateLoans, generateLoanSnapshots, generateChargeOffHistories } from '@/data/loans'
 import { SEGMENT_CONFIG, SEGMENT_IDS } from '@/data/segments'
 import { US_STATES } from '@/data/states'
 import type { Loan, LoanMetricsSnapshot, ChargeOffLoanHistory, LoanSegment } from '@/types'
@@ -111,8 +111,8 @@ export default function DataExplorerPage() {
 
   // Generate data
   const loans = useMemo(() => generateLoans(5000), [])
-  const snapshots = useMemo(() => generateQuarterlySnapshots(loans, 20), [loans])
-  const chargeOffHistories = useMemo(() => generateChargeOffHistories(200), [])
+  const snapshots = useMemo(() => generateLoanSnapshots(loans), [loans])
+  const chargeOffHistories = useMemo(() => generateChargeOffHistories(loans), [loans])
 
   // Transform data for grids
   const segmentData: SegmentRow[] = useMemo(
@@ -121,7 +121,7 @@ export default function DataExplorerPage() {
         const config = SEGMENT_CONFIG[id]
         return {
           id,
-          name: config.name,
+          name: config.label,
           pdMin: config.pd.min,
           pdMax: config.pd.max,
           lgdMin: config.lgd.min,
@@ -135,9 +135,9 @@ export default function DataExplorerPage() {
 
   const stateData: StateRow[] = useMemo(
     () =>
-      Object.entries(US_STATES).map(([code, name]) => ({
-        code,
-        name,
+      US_STATES.map((state) => ({
+        code: state.code,
+        name: state.name,
       })),
     []
   )

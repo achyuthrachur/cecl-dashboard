@@ -1,6 +1,8 @@
 import type { LoanSegment } from './loan'
 
-export type MetricType = 'pd' | 'lgd' | 'portfolioValue'
+// MetricType is defined in @/lib/colors to keep it colocated with color functions
+// Re-export it here for convenience when importing from @/types
+export type { MetricType } from '@/lib/colors'
 
 export interface SegmentMetrics {
   pd: {
