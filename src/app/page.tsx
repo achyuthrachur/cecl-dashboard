@@ -10,7 +10,7 @@ import {
   AlertTriangle,
   CheckCircle,
   ArrowRight,
-  Map,
+  Map as MapIcon,
   GitCompare,
   FileText,
   Sparkles,
@@ -433,7 +433,7 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <QuickLinkCard
               href="/geographic"
-              icon={Map}
+              icon={MapIcon}
               title="Geographic Analysis"
               description="View risk metrics and portfolio value by state"
               index={0}
