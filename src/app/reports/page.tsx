@@ -5,7 +5,7 @@ import { Header } from '@/components/layout/Header'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { generateAIReport, type AIReportRequest } from '@/lib/ai'
+import { generateAIReport, type AIReportRequest, type AIReportResponse } from '@/lib/ai'
 import {
   FileText,
   Map,
@@ -38,13 +38,13 @@ const reportTypes: { id: ReportType; label: string; description: string }[] = [
 export default function ReportsPage() {
   const [selectedModule, setSelectedModule] = useState<Module>('geographic')
   const [selectedReportType, setSelectedReportType] = useState<ReportType>('executive_summary')
-  const [report, setReport] = useState<string>('')
+  const [report, setReport] = useState<AIReportResponse | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [copied, setCopied] = useState(false)
 
   const handleGenerateReport = async () => {
     setIsLoading(true)
-    setReport('')
+    setReport(null)
 
     try {
       // Create mock data for the report
@@ -74,20 +74,23 @@ export default function ReportsPage() {
       const result = await generateAIReport(request)
       setReport(result)
     } catch (error) {
-      setReport('Error generating report. Please try again.')
+      setReport({ content: 'Error generating report. Please try again.', isAIGenerated: false, source: 'mock' })
     } finally {
       setIsLoading(false)
     }
   }
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(report)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    if (report) {
+      navigator.clipboard.writeText(report.content)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
   }
 
   const handleExport = () => {
-    const blob = new Blob([report], { type: 'text/markdown' })
+    if (!report) return
+    const blob = new Blob([report.content], { type: 'text/markdown' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -214,9 +217,18 @@ export default function ReportsPage() {
                 <CardTitle className="flex items-center gap-2">
                   <FileText className="h-5 w-5" />
                   Generated Report
+                  {report && (
+                    <span className={`ml-2 px-2 py-0.5 text-xs rounded-full font-medium ${
+                      report.isAIGenerated
+                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                        : 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200'
+                    }`}>
+                      {report.isAIGenerated ? 'AI Generated' : 'Pre-canned Demo'}
+                    </span>
+                  )}
                 </CardTitle>
                 <CardDescription>
-                  {report ? 'AI-generated analysis based on portfolio data' : 'Select options above and click Generate'}
+                  {report ? (report.isAIGenerated ? 'AI-generated analysis based on portfolio data' : 'Pre-generated sample report (API not configured)') : 'Select options above and click Generate'}
                 </CardDescription>
               </div>
               {report && (
@@ -256,7 +268,7 @@ export default function ReportsPage() {
               <div className="prose prose-sm dark:prose-invert max-w-none">
                 <div className="p-6 rounded-lg bg-muted/30 border">
                   <div className="whitespace-pre-wrap font-sans text-sm leading-relaxed">
-                    {report.split('\n').map((line, idx) => {
+                    {report.content.split('\n').map((line: string, idx: number) => {
                       if (line.startsWith('## ')) {
                         return (
                           <h2 key={idx} className="text-xl font-bold mt-6 mb-3 text-foreground">
