@@ -230,6 +230,7 @@ export default function DashboardPage() {
         else if (avgPD > 0.04) status = 'warning'
 
         return {
+          id: segment,
           name: config.label,
           pd: avgPD,
           lgd: avgLGD,
@@ -330,39 +331,42 @@ export default function DashboardPage() {
                 <StaggeredContainer className="space-y-3">
                   {riskSegments.map((segment) => (
                     <StaggeredItem key={segment.name}>
-                      <motion.div
-                        className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors"
-                        whileHover={{ x: 4 }}
-                      >
-                        <div className="flex items-center gap-3">
-                          <motion.div
-                            className={`w-2 h-2 rounded-full ${
-                              segment.status === 'good'
-                                ? 'bg-success'
-                                : segment.status === 'warning'
-                                ? 'bg-warning'
-                                : 'bg-danger'
-                            }`}
-                            animate={segment.status === 'alert' ? { scale: [1, 1.3, 1] } : {}}
-                            transition={{ duration: 1, repeat: Infinity }}
-                          />
-                          <span className="font-medium">{segment.name}</span>
-                        </div>
-                        <div className="flex items-center gap-6 text-sm">
-                          <div>
-                            <span className="text-muted-foreground">PD: </span>
-                            <span className="font-mono metric-pd">{formatPercent(segment.pd)}</span>
+                      <Link href={`/segment/${segment.id}`}>
+                        <motion.div
+                          className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted/70 hover:border-primary/50 border border-transparent transition-all cursor-pointer"
+                          whileHover={{ x: 4 }}
+                        >
+                          <div className="flex items-center gap-3">
+                            <motion.div
+                              className={`w-2 h-2 rounded-full ${
+                                segment.status === 'good'
+                                  ? 'bg-success'
+                                  : segment.status === 'warning'
+                                  ? 'bg-warning'
+                                  : 'bg-danger'
+                              }`}
+                              animate={segment.status === 'alert' ? { scale: [1, 1.3, 1] } : {}}
+                              transition={{ duration: 1, repeat: Infinity }}
+                            />
+                            <span className="font-medium">{segment.name}</span>
                           </div>
-                          <div>
-                            <span className="text-muted-foreground">LGD: </span>
-                            <span className="font-mono metric-lgd">{formatPercent(segment.lgd)}</span>
+                          <div className="flex items-center gap-6 text-sm">
+                            <div>
+                              <span className="text-muted-foreground">PD: </span>
+                              <span className="font-mono metric-pd">{formatPercent(segment.pd)}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">LGD: </span>
+                              <span className="font-mono metric-lgd">{formatPercent(segment.lgd)}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Exposure: </span>
+                              <span className="font-mono metric-portfolio-value">{formatCompactNumber(segment.exposure)}</span>
+                            </div>
+                            <ArrowRight className="h-4 w-4 text-muted-foreground" />
                           </div>
-                          <div>
-                            <span className="text-muted-foreground">Exposure: </span>
-                            <span className="font-mono metric-portfolio-value">{formatCompactNumber(segment.exposure)}</span>
-                          </div>
-                        </div>
-                      </motion.div>
+                        </motion.div>
+                      </Link>
                     </StaggeredItem>
                   ))}
                 </StaggeredContainer>
