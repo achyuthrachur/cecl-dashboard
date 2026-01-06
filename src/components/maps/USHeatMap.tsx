@@ -19,7 +19,7 @@ export interface StateData {
   stateCode: string
   pd: number
   lgd: number
-  ead: number
+  portfolioValue: number
   loanCount: number
 }
 
@@ -68,7 +68,7 @@ export function USHeatMap({
           ? formatPercent(stateData.pd)
           : metric === 'lgd'
           ? formatPercent(stateData.lgd)
-          : formatCurrency(stateData.ead)
+          : formatCurrency(stateData.portfolioValue)
 
       setTooltipContent(
         `${stateInfo.name}\n${metric.toUpperCase()}: ${metricValue}\nLoans: ${stateData.loanCount}`
@@ -115,7 +115,7 @@ export function USHeatMap({
                       ? stateData.pd
                       : metric === 'lgd'
                       ? stateData.lgd
-                      : stateData.ead / 100000000 // Normalize EAD
+                      : stateData.portfolioValue / 100000000 // Normalize Portfolio Value
                   fillColor = getMetricColor(metric, value)
                 }
 

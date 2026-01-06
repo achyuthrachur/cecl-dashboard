@@ -36,19 +36,19 @@ export default function GeographicPage() {
 
     const stateAggregates: Record<
       string,
-      { pds: number[]; lgds: number[]; eads: number[]; count: number }
+      { pds: number[]; lgds: number[]; portfolioValues: number[]; count: number }
     > = {}
 
     filteredLoans.forEach((loan) => {
       if (!stateAggregates[loan.state]) {
-        stateAggregates[loan.state] = { pds: [], lgds: [], eads: [], count: 0 }
+        stateAggregates[loan.state] = { pds: [], lgds: [], portfolioValues: [], count: 0 }
       }
       // Use mock PD/LGD based on segment
       const pd = Math.random() * 0.1 + 0.01
       const lgd = Math.random() * 0.4 + 0.2
       stateAggregates[loan.state].pds.push(pd)
       stateAggregates[loan.state].lgds.push(lgd)
-      stateAggregates[loan.state].eads.push(loan.currentBalance)
+      stateAggregates[loan.state].portfolioValues.push(loan.currentBalance)
       stateAggregates[loan.state].count++
     })
 
@@ -56,7 +56,7 @@ export default function GeographicPage() {
       stateCode,
       pd: data.pds.reduce((a, b) => a + b, 0) / data.pds.length,
       lgd: data.lgds.reduce((a, b) => a + b, 0) / data.lgds.length,
-      ead: data.eads.reduce((a, b) => a + b, 0),
+      portfolioValue: data.portfolioValues.reduce((a, b) => a + b, 0),
       loanCount: data.count,
     }))
   }, [loans, selectedSegments])
@@ -79,9 +79,9 @@ export default function GeographicPage() {
       stateCode: s.stateCode,
       pd: s.pd,
       lgd: s.lgd,
-      ead: s.ead,
+      portfolioValue: s.portfolioValue,
       loanCount: s.loanCount,
-      expectedLoss: s.pd * s.lgd * s.ead,
+      expectedLoss: s.pd * s.lgd * s.portfolioValue,
     }))
   }, [stateData])
 
@@ -176,10 +176,10 @@ export default function GeographicPage() {
                         <div className="p-3 rounded-lg bg-muted/50">
                           <div className="flex items-center gap-2 text-muted-foreground">
                             <DollarSign className="h-4 w-4" />
-                            <span className="text-xs">Total EAD</span>
+                            <span className="text-xs">Portfolio Value</span>
                           </div>
-                          <p className="text-xl font-bold mt-1 metric-ead">
-                            {formatCompactNumber(currentStateMetrics.ead)}
+                          <p className="text-xl font-bold mt-1 metric-portfolio-value">
+                            {formatCompactNumber(currentStateMetrics.portfolioValue)}
                           </p>
                         </div>
                         <div className="p-3 rounded-lg bg-muted/50">
@@ -249,14 +249,14 @@ export default function GeographicPage() {
                       <th>State</th>
                       <th className="text-right">PD</th>
                       <th className="text-right">LGD</th>
-                      <th className="text-right">EAD</th>
+                      <th className="text-right">Portfolio Value</th>
                       <th className="text-right">Expected Loss</th>
                       <th className="text-right">Loans</th>
                     </tr>
                   </thead>
                   <tbody>
                     {stateData
-                      .sort((a, b) => b.ead - a.ead)
+                      .sort((a, b) => b.portfolioValue - a.portfolioValue)
                       .slice(0, 20)
                       .map((state) => (
                         <tr
@@ -278,11 +278,11 @@ export default function GeographicPage() {
                           <td className="text-right font-mono metric-lgd">
                             {formatPercent(state.lgd)}
                           </td>
-                          <td className="text-right font-mono metric-ead">
-                            {formatCurrency(state.ead)}
+                          <td className="text-right font-mono metric-portfolio-value">
+                            {formatCurrency(state.portfolioValue)}
                           </td>
                           <td className="text-right font-mono">
-                            {formatCurrency(state.pd * state.lgd * state.ead)}
+                            {formatCurrency(state.pd * state.lgd * state.portfolioValue)}
                           </td>
                           <td className="text-right">
                             {state.loanCount.toLocaleString()}
@@ -309,7 +309,7 @@ export default function GeographicPage() {
           { key: 'stateCode', label: 'Code', format: 'text' },
           { key: 'pd', label: 'Avg PD', format: 'percent' },
           { key: 'lgd', label: 'Avg LGD', format: 'percent' },
-          { key: 'ead', label: 'Total EAD', format: 'currency' },
+          { key: 'portfolioValue', label: 'Portfolio Value', format: 'currency' },
           { key: 'expectedLoss', label: 'Expected Loss', format: 'currency' },
           { key: 'loanCount', label: 'Loans', format: 'number' },
         ]}

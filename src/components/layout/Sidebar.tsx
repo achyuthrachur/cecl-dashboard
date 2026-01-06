@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   ChevronLeft,
   ChevronRight,
+  Database,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -51,6 +52,12 @@ const navItems = [
     icon: FileText,
     label: 'AI Reports',
     description: 'Generate reports',
+  },
+  {
+    href: '/data',
+    icon: Database,
+    label: 'Data Explorer',
+    description: 'View all data',
   },
 ]
 

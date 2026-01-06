@@ -1,1 +1,1 @@
-export { DataPreviewSheet } from './DataPreviewSheet'
+export { DataGrid, type Column } from './DataGrid'

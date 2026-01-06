@@ -11,8 +11,8 @@ export function MetricLegend({ metric }: MetricLegendProps) {
   const colorSteps = getColorSteps(metric, 5)
 
   const formatValue = (value: number) => {
-    if (metric === 'ead') {
-      // EAD is normalized 0-1, so show as percentage of max
+    if (metric === 'portfolioValue') {
+      // Portfolio Value is normalized 0-1, so show as percentage of max
       return `${(value * 100).toFixed(0)}%`
     }
     return formatPercent(value, 1)
@@ -24,8 +24,8 @@ export function MetricLegend({ metric }: MetricLegendProps) {
         return 'Probability of Default'
       case 'lgd':
         return 'Loss Given Default'
-      case 'ead':
-        return 'Exposure Concentration'
+      case 'portfolioValue':
+        return 'Portfolio Value Concentration'
     }
   }
 

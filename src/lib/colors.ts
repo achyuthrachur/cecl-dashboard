@@ -1,7 +1,7 @@
 import { scaleSequential, scaleLinear } from 'd3-scale'
 import { interpolateRdYlGn, interpolateYlOrRd, interpolateBlues } from 'd3-scale-chromatic'
 
-export type MetricType = 'pd' | 'lgd' | 'ead'
+export type MetricType = 'pd' | 'lgd' | 'portfolioValue'
 
 // Color scales for different metrics
 // PD: Higher is worse (red), lower is better (green)
@@ -10,8 +10,8 @@ export const pdColorScale = scaleSequential(interpolateYlOrRd).domain([0, 0.15])
 // LGD: Higher is worse (red), lower is better (green)
 export const lgdColorScale = scaleSequential(interpolateYlOrRd).domain([0.2, 0.7])
 
-// EAD: Neutral (blue scale) - just showing concentration
-export const eadColorScale = scaleSequential(interpolateBlues).domain([0, 1])
+// Portfolio Value: Neutral (blue scale) - just showing concentration
+export const portfolioValueColorScale = scaleSequential(interpolateBlues).domain([0, 1])
 
 export function getMetricColor(metric: MetricType, value: number): string {
   switch (metric) {
@@ -19,8 +19,8 @@ export function getMetricColor(metric: MetricType, value: number): string {
       return pdColorScale(value)
     case 'lgd':
       return lgdColorScale(value)
-    case 'ead':
-      return eadColorScale(value)
+    case 'portfolioValue':
+      return portfolioValueColorScale(value)
     default:
       return '#6b7280'
   }
@@ -38,7 +38,7 @@ export function getColorSteps(metric: MetricType, steps: number = 5): { value: n
     case 'lgd':
       domain = [0.2, 0.7]
       break
-    case 'ead':
+    case 'portfolioValue':
       domain = [0, 1]
       break
   }
@@ -76,7 +76,7 @@ export const CHART_COLORS = {
   danger: '#ef4444',
   pd: '#3b82f6',
   lgd: '#f59e0b',
-  ead: '#10b981',
+  portfolioValue: '#10b981',
   grid: '#e5e7eb',
   gridDark: '#374151',
   text: '#6b7280',

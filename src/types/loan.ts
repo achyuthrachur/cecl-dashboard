@@ -31,7 +31,7 @@ export interface LoanMetricsSnapshot {
   snapshotDate: string
   pd: number
   lgd: number
-  ead: number
+  portfolioValue: number
   expectedLoss: number
 }
 
@@ -45,7 +45,7 @@ export interface ChargeOffLoanHistory {
     date: string
     pd: number
     lgd: number
-    ead: number
+    portfolioValue: number
     paymentStatus: 'current' | 'delinquent_30' | 'delinquent_60' | 'delinquent_90'
   }[]
 }

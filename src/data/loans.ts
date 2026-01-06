@@ -56,9 +56,9 @@ function generateLGD(segment: LoanSegment, isStressed: boolean = false): number 
   return isStressed ? Math.min(base * 1.2, 0.85) : base
 }
 
-function generateEAD(segment: LoanSegment): number {
+function generatePortfolioValue(segment: LoanSegment): number {
   const config = SEGMENT_CONFIG[segment]
-  return randomBetween(config.eadRange.min, config.eadRange.max)
+  return randomBetween(config.portfolioValueRange.min, config.portfolioValueRange.max)
 }
 
 function pickState(): string {
@@ -101,7 +101,7 @@ export function generateLoans(count: number = 5000): Loan[] {
       SEGMENT_IDS.map((s) => segmentWeights[s])
     )
     const config = SEGMENT_CONFIG[segment]
-    const ead = generateEAD(segment)
+    const portfolioValue = generatePortfolioValue(segment)
     const term = randomInt(config.typicalTerm.min, config.typicalTerm.max)
     const originationDate = generateOriginationDate(5)
     const maturityDate = new Date(originationDate)
@@ -119,7 +119,7 @@ export function generateLoans(count: number = 5000): Loan[] {
       )
       if (chargeOffDateObj < new Date()) {
         chargeOffDate = formatDate(chargeOffDateObj)
-        chargeOffAmount = ead * randomBetween(0.3, 0.8)
+        chargeOffAmount = portfolioValue * randomBetween(0.3, 0.8)
       }
     }
 
@@ -127,8 +127,8 @@ export function generateLoans(count: number = 5000): Loan[] {
       loanId: generateLoanId(),
       originationDate: formatDate(originationDate),
       maturityDate: formatDate(maturityDate),
-      originalBalance: ead,
-      currentBalance: ead * randomBetween(0.7, 1.0),
+      originalBalance: portfolioValue,
+      currentBalance: portfolioValue * randomBetween(0.7, 1.0),
       segment,
       state: pickState(),
       interestRate: randomBetween(0.03, 0.12),
@@ -163,15 +163,15 @@ export function generateLoanSnapshots(loans: Loan[]): LoanMetricsSnapshot[] {
 
       const pd = generatePD(loan.segment, economicStress)
       const lgd = generateLGD(loan.segment, economicStress)
-      const ead = loan.currentBalance * randomBetween(0.95, 1.05)
+      const portfolioValue = loan.currentBalance * randomBetween(0.95, 1.05)
 
       snapshots.push({
         loanId: loan.loanId,
         snapshotDate: quarter,
         pd,
         lgd,
-        ead,
-        expectedLoss: pd * lgd * ead,
+        portfolioValue,
+        expectedLoss: pd * lgd * portfolioValue,
       })
     }
   }
@@ -229,7 +229,7 @@ export function generateChargeOffHistories(
 
       const pd = Math.min(basePD * pdMultiplier * randomBetween(0.8, 1.2), 0.95)
       const lgd = Math.min(baseLGD * lgdMultiplier * randomBetween(0.9, 1.1), 0.90)
-      const ead = loan.currentBalance * randomBetween(0.95, 1.02)
+      const portfolioValue = loan.currentBalance * randomBetween(0.95, 1.02)
 
       // Payment status deteriorates
       let paymentStatus: 'current' | 'delinquent_30' | 'delinquent_60' | 'delinquent_90' = 'current'
@@ -242,7 +242,7 @@ export function generateChargeOffHistories(
         date: formatDate(snapshotDate),
         pd,
         lgd,
-        ead,
+        portfolioValue,
         paymentStatus,
       })
     }
@@ -267,7 +267,7 @@ export function generateStateMetrics(
   const quarters = generateQuarters(20)
   const stateQuarterlyMetrics: Record<
     string,
-    Record<string, { pd: number[]; lgd: number[]; ead: number[]; count: number }>
+    Record<string, { pd: number[]; lgd: number[]; portfolioValue: number[]; count: number }>
   > = {}
 
   // Initialize
@@ -277,7 +277,7 @@ export function generateStateMetrics(
       stateQuarterlyMetrics[state.code][quarter] = {
         pd: [],
         lgd: [],
-        ead: [],
+        portfolioValue: [],
         count: 0,
       }
     }
@@ -296,14 +296,14 @@ export function generateStateMetrics(
 
     stateData.pd.push(snapshot.pd)
     stateData.lgd.push(snapshot.lgd)
-    stateData.ead.push(snapshot.ead)
+    stateData.portfolioValue.push(snapshot.portfolioValue)
     stateData.count++
   }
 
   // Calculate averages
   const result: Record<
     string,
-    { period: string; pd: number; lgd: number; ead: number; loanCount: number }[]
+    { period: string; pd: number; lgd: number; portfolioValue: number; loanCount: number }[]
   > = {}
 
   for (const [stateCode, quarterData] of Object.entries(stateQuarterlyMetrics)) {
@@ -314,7 +314,7 @@ export function generateStateMetrics(
         period: quarter,
         pd: data.pd.reduce((a, b) => a + b, 0) / data.pd.length,
         lgd: data.lgd.reduce((a, b) => a + b, 0) / data.lgd.length,
-        ead: data.ead.reduce((a, b) => a + b, 0),
+        portfolioValue: data.portfolioValue.reduce((a, b) => a + b, 0),
         loanCount: data.count,
       })
     }

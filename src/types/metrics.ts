@@ -1,6 +1,6 @@
 import type { LoanSegment } from './loan'
 
-export type MetricType = 'pd' | 'lgd' | 'ead'
+export type MetricType = 'pd' | 'lgd' | 'portfolioValue'
 
 export interface SegmentMetrics {
   pd: {
@@ -15,7 +15,7 @@ export interface SegmentMetrics {
     max: number
     median: number
   }
-  ead: {
+  portfolioValue: {
     total: number
     average: number
   }
@@ -56,7 +56,7 @@ export interface HistoricalStateMetrics {
     period: string
     pd: number
     lgd: number
-    ead: number
+    portfolioValue: number
     loanCount: number
     expectedLoss: number
   }[]
@@ -84,7 +84,7 @@ export interface ReserveRecord {
   period: string
   predictedPD: number
   predictedLGD: number
-  predictedEAD: number
+  predictedPortfolioValue: number
   predictedLoss: number
   reserveAmount: number
 }

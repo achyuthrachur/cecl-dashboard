@@ -11,7 +11,7 @@ interface MetricSelectorProps {
 const metrics: { value: MetricType; label: string; description: string }[] = [
   { value: 'pd', label: 'PD', description: 'Probability of Default' },
   { value: 'lgd', label: 'LGD', description: 'Loss Given Default' },
-  { value: 'ead', label: 'EAD', description: 'Exposure at Default' },
+  { value: 'portfolioValue', label: 'Portfolio Value', description: 'Total Portfolio Value' },
 ]
 
 export function MetricSelector({ value, onChange }: MetricSelectorProps) {

@@ -4,6 +4,7 @@ import './globals.css'
 import { ThemeProvider } from '@/components/layout/ThemeProvider'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { SimpleAurora } from '@/components/animations'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -35,7 +36,10 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <TooltipProvider>
-            <div className="flex min-h-screen">
+            {/* Animated Aurora Background */}
+            <SimpleAurora />
+
+            <div className="relative flex min-h-screen">
               <Sidebar />
               <main className="flex-1 ml-64 transition-all duration-300">
                 {children}

@@ -17,13 +17,13 @@ interface DataPoint {
   period: string
   pd?: number
   lgd?: number
-  ead?: number
+  portfolioValue?: number
   [key: string]: any
 }
 
 interface TimeSeriesChartProps {
   data: DataPoint[]
-  metrics?: ('pd' | 'lgd' | 'ead')[]
+  metrics?: ('pd' | 'lgd' | 'portfolioValue')[]
   height?: number
   showGrid?: boolean
   title?: string
@@ -31,27 +31,27 @@ interface TimeSeriesChartProps {
 
 export function TimeSeriesChart({
   data,
-  metrics = ['pd', 'lgd', 'ead'],
+  metrics = ['pd', 'lgd', 'portfolioValue'],
   height = 300,
   showGrid = true,
   title,
 }: TimeSeriesChartProps) {
   const formatYAxis = (value: number, metric: string) => {
-    if (metric === 'ead') {
+    if (metric === 'portfolioValue') {
       return `$${(value / 1000000).toFixed(1)}M`
     }
     return `${(value * 100).toFixed(1)}%`
   }
 
   const formatTooltipValue = (value: number, name: string) => {
-    if (name.toLowerCase() === 'ead') {
+    if (name.toLowerCase() === 'portfolio value') {
       return formatCurrency(value)
     }
     return formatPercent(value)
   }
 
-  // Calculate if we need dual Y-axes (for EAD vs PD/LGD)
-  const hasEAD = metrics.includes('ead')
+  // Calculate if we need dual Y-axes (for Portfolio Value vs PD/LGD)
+  const hasPortfolioValue = metrics.includes('portfolioValue')
   const hasPercentMetrics = metrics.some((m) => m === 'pd' || m === 'lgd')
 
   return (
@@ -91,9 +91,9 @@ export function TimeSeriesChart({
               domain={[0, 'auto']}
             />
           )}
-          {hasEAD && (
+          {hasPortfolioValue && (
             <YAxis
-              yAxisId="ead"
+              yAxisId="portfolioValue"
               orientation="right"
               tick={{ fontSize: 12 }}
               className="text-muted-foreground"
@@ -143,13 +143,13 @@ export function TimeSeriesChart({
               activeDot={{ r: 4 }}
             />
           )}
-          {metrics.includes('ead') && (
+          {metrics.includes('portfolioValue') && (
             <Line
-              yAxisId="ead"
+              yAxisId="portfolioValue"
               type="monotone"
-              dataKey="ead"
-              name="EAD"
-              stroke={CHART_COLORS.ead}
+              dataKey="portfolioValue"
+              name="Portfolio Value"
+              stroke={CHART_COLORS.portfolioValue}
               strokeWidth={2}
               dot={false}
               activeDot={{ r: 4 }}
