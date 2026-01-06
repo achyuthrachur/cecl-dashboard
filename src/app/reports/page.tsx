@@ -5,7 +5,7 @@ import { Header } from '@/components/layout/Header'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { generateAIReport, type AIReportRequest, type AIReportResponse } from '@/lib/ai'
+import { type AIReportRequest, type AIReportResponse } from '@/lib/ai'
 import {
   FileText,
   Map,
@@ -71,7 +71,14 @@ export default function ReportsPage() {
         data: mockData,
       }
 
-      const result = await generateAIReport(request)
+      // Call the API route (runs on server where env vars are available)
+      const response = await fetch('/api/generate-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+      })
+
+      const result: AIReportResponse = await response.json()
       setReport(result)
     } catch (error) {
       setReport({ content: 'Error generating report. Please try again.', isAIGenerated: false, source: 'mock' })

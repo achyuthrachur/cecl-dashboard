@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Header } from '@/components/layout/Header'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -14,7 +14,8 @@ import { SEGMENT_IDS, getSegmentLabel, getSegmentColor } from '@/data/segments'
 import type { LoanSegment, MacroIndicator } from '@/types'
 import { MACRO_INDICATOR_INFO } from '@/types/macro'
 import { formatPercent } from '@/lib/utils'
-import { TrendingUp, Activity, DollarSign, Percent, Building, Car } from 'lucide-react'
+import { TrendingUp, Activity, DollarSign, Percent, Building, Car, Loader2 } from 'lucide-react'
+import type { MacroTimeSeries } from '@/types'
 import {
   LineChart,
   Line,
@@ -41,9 +42,30 @@ export default function MacroPage() {
   const [selectedSegments, setSelectedSegments] = useState<LoanSegment[]>(SEGMENT_IDS)
   const [selectedIndicator, setSelectedIndicator] = useState<MacroIndicator>('UNRATE')
   const [showDataPreview, setShowDataPreview] = useState(false)
+  const [macroData, setMacroData] = useState<Record<MacroIndicator, MacroTimeSeries> | null>(null)
+  const [isLiveData, setIsLiveData] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
 
-  // Get macro data
-  const macroData = useMemo(() => generateAllMacroData(), [])
+  // Fetch macro data from API
+  useEffect(() => {
+    async function fetchMacroData() {
+      try {
+        const response = await fetch('/api/macro-data')
+        const result = await response.json()
+        setMacroData(result.data)
+        setIsLiveData(result.isLiveData)
+      } catch (error) {
+        console.error('Error fetching macro data:', error)
+        // Fall back to mock data
+        setMacroData(generateAllMacroData())
+        setIsLiveData(false)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    fetchMacroData()
+  }, [])
+
   const loans = useMemo(() => getLoans(), [])
 
   // Generate segment-level metrics over time
@@ -84,6 +106,7 @@ export default function MacroPage() {
 
   // Combine macro data with credit metrics for correlation view
   const correlationData = useMemo(() => {
+    if (!macroData) return []
     const macroSeries = macroData[selectedIndicator]?.data || []
 
     return macroSeries.map((point, idx) => {
@@ -103,7 +126,7 @@ export default function MacroPage() {
   // Calculate correlations
   const correlations = useMemo(() => {
     return macroIndicators.map((indicator) => {
-      const data = macroData[indicator]?.data || []
+      const data = macroData?.[indicator]?.data || []
       // Simulate correlation coefficient
       const baseCorr = {
         UNRATE: 0.72,
@@ -124,11 +147,33 @@ export default function MacroPage() {
     })
   }, [macroData])
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen gradient-bg flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-10 w-10 animate-spin mx-auto text-primary" />
+          <p className="text-muted-foreground mt-4">Loading macroeconomic data...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen gradient-bg">
       <Header
         title="Macroeconomic Correlations"
-        subtitle="Credit risk metrics correlated with economic indicators"
+        subtitle={
+          <span className="flex items-center gap-2">
+            Credit risk metrics correlated with economic indicators
+            <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
+              isLiveData
+                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                : 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200'
+            }`}>
+              {isLiveData ? 'Live FRED Data' : 'Mock Data'}
+            </span>
+          </span>
+        }
         onViewData={() => setShowDataPreview(true)}
       />
 
@@ -381,7 +426,7 @@ export default function MacroPage() {
         onClose={() => setShowDataPreview(false)}
         title="Macroeconomic Data"
         description="Historical economic indicators used in correlation analysis"
-        data={macroData[selectedIndicator]?.data || []}
+        data={macroData?.[selectedIndicator]?.data || []}
         columns={[
           { key: 'date', label: 'Date', format: 'text' },
           { key: 'value', label: 'Value', format: 'number' },

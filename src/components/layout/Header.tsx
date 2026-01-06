@@ -3,11 +3,12 @@
 import { ThemeToggle } from './ThemeToggle'
 import { Button } from '@/components/ui/button'
 import { Database, Download } from 'lucide-react'
+import { ReactNode } from 'react'
 
 interface HeaderProps {
   onViewData?: () => void
   title?: string
-  subtitle?: string
+  subtitle?: string | ReactNode
 }
 
 export function Header({ onViewData, title, subtitle }: HeaderProps) {
@@ -17,7 +18,7 @@ export function Header({ onViewData, title, subtitle }: HeaderProps) {
         <div>
           {title && <h1 className="text-xl font-semibold">{title}</h1>}
           {subtitle && (
-            <p className="text-sm text-muted-foreground">{subtitle}</p>
+            <div className="text-sm text-muted-foreground">{subtitle}</div>
           )}
         </div>
 
