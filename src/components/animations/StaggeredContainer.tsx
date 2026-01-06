@@ -1,6 +1,6 @@
 'use client'
 
-import { motion, Variants } from 'framer-motion'
+import { motion, Variants, TargetAndTransition, VariantLabels } from 'framer-motion'
 import { ReactNode } from 'react'
 
 export const containerVariants: Variants = {
@@ -127,8 +127,8 @@ interface MotionWrapperProps {
   children: ReactNode
   className?: string
   variants?: Variants
-  whileHover?: object
-  whileTap?: object
+  whileHover?: VariantLabels | TargetAndTransition
+  whileTap?: VariantLabels | TargetAndTransition
 }
 
 export function MotionWrapper({
