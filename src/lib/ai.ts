@@ -2039,5 +2039,49 @@ Success Metrics Dashboard:
     },
   }
 
-  return mockReports[module]?.[reportType] ?? 'Report generation requires API configuration.'
+  let report = mockReports[module]?.[reportType] ?? 'Report generation requires API configuration.'
+
+  // Replace placeholder values with real data from the request
+  if (request.data) {
+    const data = request.data
+    const isSegmentReport = data.reportScope === 'segment'
+    const scopeLabel = isSegmentReport ? data.segmentName : 'Full Portfolio'
+
+    // Replace common values
+    const replacements: Record<string, string> = {
+      // Portfolio/exposure values
+      '$4.2B': data.totalExposure || '$4.2B',
+      '$2.45B': data.totalExposure || '$2.45B',
+      '4.2%': data.avgPD || '4.2%',
+      '38%': data.avgLGD || '38%',
+      '44%': data.avgLGD || '44%',
+      '5000': String(data.portfolioSize || 5000),
+      '5,000': (data.portfolioSize || 5000).toLocaleString(),
+    }
+
+    // Apply replacements
+    for (const [placeholder, value] of Object.entries(replacements)) {
+      report = report.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), value)
+    }
+
+    // Add segment-specific header if this is a segment report
+    if (isSegmentReport && data.segmentName) {
+      const segmentHeader = `SEGMENT ANALYSIS: ${data.segmentName.toUpperCase()}
+
+This report focuses specifically on the ${data.segmentName} segment.
+• Segment Exposure: ${data.totalExposure}
+• Segment Loan Count: ${(data.portfolioSize || 0).toLocaleString()}
+• Segment Average PD: ${data.avgPD}
+• Segment Average LGD: ${data.avgLGD}
+• Percentage of Total Portfolio: ${data.percentOfTotalPortfolio || 'N/A'}
+• Total Portfolio Exposure: ${data.totalPortfolioExposure || 'N/A'}
+
+---
+
+`
+      report = segmentHeader + report
+    }
+  }
+
+  return report
 }

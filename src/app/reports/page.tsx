@@ -1,11 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Header } from '@/components/layout/Header'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { type AIReportRequest, type AIReportResponse } from '@/lib/ai'
+import { getReportData, formatReportDataForAI, getAllSegmentMetrics, getPortfolioMetrics } from '@/lib/portfolio-metrics'
+import { SEGMENT_CONFIG, SEGMENT_IDS } from '@/data/segments'
+import type { LoanSegment } from '@/types'
 import {
   FileText,
   Map,
@@ -17,10 +19,13 @@ import {
   Copy,
   Check,
   Loader2,
+  Layers,
+  Building2,
 } from 'lucide-react'
 
 type Module = 'geographic' | 'macro' | 'backtesting' | 'pre-chargeoff'
 type ReportType = 'executive_summary' | 'pattern_analysis' | 'recommendations'
+type ReportScope = 'portfolio' | 'segment'
 
 const modules: { id: Module; label: string; icon: React.ElementType; description: string }[] = [
   { id: 'geographic', label: 'Geographic', icon: Map, description: 'State-level risk analysis' },
@@ -38,37 +43,43 @@ const reportTypes: { id: ReportType; label: string; description: string }[] = [
 export default function ReportsPage() {
   const [selectedModule, setSelectedModule] = useState<Module>('geographic')
   const [selectedReportType, setSelectedReportType] = useState<ReportType>('executive_summary')
+  const [selectedScope, setSelectedScope] = useState<ReportScope>('portfolio')
+  const [selectedSegment, setSelectedSegment] = useState<LoanSegment | null>(null)
   const [report, setReport] = useState<AIReportResponse | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [copied, setCopied] = useState(false)
+
+  // Get real portfolio metrics
+  const portfolioMetrics = useMemo(() => getPortfolioMetrics(), [])
+  const segmentMetrics = useMemo(() => getAllSegmentMetrics(), [])
+
+  // Get the selected segment's metrics
+  const selectedSegmentMetrics = useMemo(() => {
+    if (!selectedSegment) return null
+    return segmentMetrics.find(s => s.segmentId === selectedSegment)
+  }, [selectedSegment, segmentMetrics])
+
+  // Get the current metrics to display (either portfolio or segment)
+  const currentMetrics = useMemo(() => {
+    if (selectedScope === 'segment' && selectedSegmentMetrics) {
+      return selectedSegmentMetrics
+    }
+    return portfolioMetrics
+  }, [selectedScope, selectedSegmentMetrics, portfolioMetrics])
 
   const handleGenerateReport = async () => {
     setIsLoading(true)
     setReport(null)
 
     try {
-      // Create mock data for the report
-      const mockData: Record<string, any> = {
-        data: {
-          portfolioSize: 5000,
-          totalExposure: '$2.45B',
-          avgPD: '4.2%',
-          avgLGD: '38%',
-          segments: ['CRE', 'C&I', 'Consumer', 'Auto', 'Residential'],
-        },
-      }
-
-      // Add module-specific data
-      if (selectedModule === 'backtesting') {
-        mockData.mae = '$2.3M'
-        mockData.rmse = '$3.1M'
-        mockData.accuracy = '87'
-      }
+      // Get real report data from the portfolio
+      const reportData = getReportData(selectedScope === 'segment' ? selectedSegment ?? undefined : undefined)
+      const formattedData = formatReportDataForAI(reportData, selectedScope === 'segment' ? selectedSegment ?? undefined : undefined)
 
       const request: AIReportRequest = {
         module: selectedModule,
         reportType: selectedReportType,
-        data: mockData,
+        data: formattedData,
       }
 
       // Call the API route (runs on server where env vars are available)
@@ -97,11 +108,14 @@ export default function ReportsPage() {
 
   const handleExport = () => {
     if (!report) return
+    const scopeLabel = selectedScope === 'segment' && selectedSegment
+      ? `-${SEGMENT_CONFIG[selectedSegment].shortLabel.toLowerCase().replace(/\s+/g, '-')}`
+      : ''
     const blob = new Blob([report.content], { type: 'text/markdown' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `cecl-${selectedModule}-${selectedReportType}.md`
+    a.download = `cecl-${selectedModule}-${selectedReportType}${scopeLabel}.md`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -114,7 +128,127 @@ export default function ReportsPage() {
       />
 
       <div className="p-6 space-y-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Current Metrics Summary */}
+        <Card glass>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              {selectedScope === 'segment' && selectedSegmentMetrics ? (
+                <>
+                  <Building2 className="h-4 w-4" />
+                  {selectedSegmentMetrics.segmentName} Metrics
+                </>
+              ) : (
+                <>
+                  <Layers className="h-4 w-4" />
+                  Full Portfolio Metrics
+                </>
+              )}
+            </CardTitle>
+            <CardDescription>
+              Real-time calculated values from loan data
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              <div className="p-3 rounded-lg bg-muted/50">
+                <p className="text-xs text-muted-foreground">Total Exposure</p>
+                <p className="text-lg font-bold">{currentMetrics.totalExposureFormatted}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-muted/50">
+                <p className="text-xs text-muted-foreground">Loan Count</p>
+                <p className="text-lg font-bold">{currentMetrics.loanCount.toLocaleString()}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-muted/50">
+                <p className="text-xs text-muted-foreground">Average PD</p>
+                <p className="text-lg font-bold">{currentMetrics.avgPDFormatted}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-muted/50">
+                <p className="text-xs text-muted-foreground">Average LGD</p>
+                <p className="text-lg font-bold">{currentMetrics.avgLGDFormatted}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-muted/50">
+                <p className="text-xs text-muted-foreground">Expected Loss</p>
+                <p className="text-lg font-bold">{currentMetrics.totalExpectedLossFormatted}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-muted/50">
+                <p className="text-xs text-muted-foreground">Charge-Off Rate</p>
+                <p className="text-lg font-bold">{currentMetrics.chargeOffRateFormatted}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* Report Scope Selection */}
+          <Card glass>
+            <CardHeader>
+              <CardTitle className="text-base">Report Scope</CardTitle>
+              <CardDescription>Choose portfolio or segment level</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <button
+                onClick={() => {
+                  setSelectedScope('portfolio')
+                  setSelectedSegment(null)
+                }}
+                className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${
+                  selectedScope === 'portfolio'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted/50 hover:bg-muted'
+                }`}
+              >
+                <Layers className="h-5 w-5" />
+                <div className="text-left">
+                  <p className="font-medium">Full Portfolio</p>
+                  <p className={`text-xs ${selectedScope === 'portfolio' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                    {portfolioMetrics.totalExposureFormatted} total exposure
+                  </p>
+                </div>
+              </button>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">Or select segment</span>
+                </div>
+              </div>
+
+              <div className="max-h-[280px] overflow-y-auto space-y-1 pr-1">
+                {segmentMetrics.map((segment) => (
+                  <button
+                    key={segment.segmentId}
+                    onClick={() => {
+                      setSelectedScope('segment')
+                      setSelectedSegment(segment.segmentId)
+                    }}
+                    className={`w-full flex items-center gap-3 p-2.5 rounded-lg transition-all text-sm ${
+                      selectedScope === 'segment' && selectedSegment === segment.segmentId
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted/50 hover:bg-muted'
+                    }`}
+                  >
+                    <div
+                      className="w-2 h-2 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: SEGMENT_CONFIG[segment.segmentId].color }}
+                    />
+                    <div className="text-left flex-1 min-w-0">
+                      <p className="font-medium truncate">{segment.segmentShortName}</p>
+                      <p className={`text-xs ${
+                        selectedScope === 'segment' && selectedSegment === segment.segmentId
+                          ? 'text-primary-foreground/70'
+                          : 'text-muted-foreground'
+                      }`}>
+                        {segment.totalExposureFormatted} ({(segment.percentOfPortfolio * 100).toFixed(1)}%)
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Module Selection */}
           <Card glass>
             <CardHeader>
@@ -179,14 +313,24 @@ export default function ReportsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="p-4 rounded-lg bg-muted/50">
+              <div className="p-4 rounded-lg bg-muted/50 space-y-2">
+                <p className="text-sm">
+                  <span className="font-medium">Scope:</span>{' '}
+                  {selectedScope === 'segment' && selectedSegmentMetrics
+                    ? selectedSegmentMetrics.segmentName
+                    : 'Full Portfolio'}
+                </p>
                 <p className="text-sm">
                   <span className="font-medium">Module:</span>{' '}
                   {modules.find((m) => m.id === selectedModule)?.label}
                 </p>
-                <p className="text-sm mt-1">
+                <p className="text-sm">
                   <span className="font-medium">Type:</span>{' '}
                   {reportTypes.find((t) => t.id === selectedReportType)?.label}
+                </p>
+                <p className="text-sm">
+                  <span className="font-medium">Exposure:</span>{' '}
+                  {currentMetrics.totalExposureFormatted}
                 </p>
               </div>
 
@@ -210,7 +354,7 @@ export default function ReportsPage() {
               </Button>
 
               <p className="text-xs text-muted-foreground text-center">
-                Reports are generated using synthetic data for demonstration purposes
+                Reports use real calculated portfolio data
               </p>
             </CardContent>
           </Card>
@@ -337,7 +481,7 @@ export default function ReportsPage() {
                 <div className="text-center">
                   <Sparkles className="h-12 w-12 text-muted-foreground/50 mx-auto" />
                   <p className="text-muted-foreground mt-4">
-                    Select a module and report type, then click Generate
+                    Select a scope, module, and report type, then click Generate
                   </p>
                 </div>
               </div>
@@ -360,31 +504,37 @@ export default function ReportsPage() {
                   title: 'Quarterly Committee Report',
                   description: 'Full CECL committee presentation with all modules',
                   modules: ['geographic', 'macro', 'backtesting'],
+                  scope: 'portfolio' as ReportScope,
                 },
                 {
                   title: 'Risk Concentration Alert',
                   description: 'Geographic and segment concentration analysis',
                   modules: ['geographic'],
+                  scope: 'portfolio' as ReportScope,
                 },
                 {
                   title: 'Model Validation Summary',
                   description: 'Backtesting results and calibration recommendations',
                   modules: ['backtesting'],
+                  scope: 'portfolio' as ReportScope,
                 },
                 {
                   title: 'Early Warning Report',
                   description: 'Pre-charge-off signals and intervention triggers',
                   modules: ['pre-chargeoff'],
+                  scope: 'portfolio' as ReportScope,
+                },
+                {
+                  title: 'Segment Deep Dive',
+                  description: 'Detailed analysis for a single segment',
+                  modules: ['geographic', 'macro'],
+                  scope: 'segment' as ReportScope,
                 },
                 {
                   title: 'Economic Outlook Impact',
                   description: 'Macro trends and forward-looking scenarios',
                   modules: ['macro'],
-                },
-                {
-                  title: 'Regulatory Submission',
-                  description: 'CECL documentation for regulatory review',
-                  modules: ['geographic', 'macro', 'backtesting', 'pre-chargeoff'],
+                  scope: 'portfolio' as ReportScope,
                 },
               ].map((template, idx) => (
                 <div
@@ -393,13 +543,26 @@ export default function ReportsPage() {
                   onClick={() => {
                     setSelectedModule(template.modules[0] as Module)
                     setSelectedReportType('executive_summary')
+                    if (template.scope === 'segment' && !selectedSegment) {
+                      setSelectedScope('segment')
+                      setSelectedSegment(SEGMENT_IDS[0])
+                    } else {
+                      setSelectedScope(template.scope)
+                    }
                   }}
                 >
                   <h4 className="font-medium">{template.title}</h4>
                   <p className="text-sm text-muted-foreground mt-1">
                     {template.description}
                   </p>
-                  <div className="flex gap-1 mt-2">
+                  <div className="flex gap-1 mt-2 flex-wrap">
+                    <span className={`px-2 py-0.5 text-xs rounded ${
+                      template.scope === 'segment'
+                        ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+                        : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                    }`}>
+                      {template.scope}
+                    </span>
                     {template.modules.map((m) => (
                       <span
                         key={m}

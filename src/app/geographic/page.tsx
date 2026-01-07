@@ -26,9 +26,22 @@ export default function GeographicPage() {
 
   // Get synthetic data
   const loans = useMemo(() => getLoans(), [])
+  const snapshots = useMemo(() => getSnapshots(), [])
   const stateMetricsData = useMemo(() => getStateMetricsData(), [])
 
-  // Aggregate state data for heat map
+  // Build a map of latest snapshots for each loan
+  const latestSnapshotMap = useMemo(() => {
+    const map = new Map<string, { pd: number; lgd: number }>()
+    snapshots.forEach(snapshot => {
+      const existing = map.get(snapshot.loanId)
+      if (!existing || snapshot.snapshotDate > (existing as any).snapshotDate) {
+        map.set(snapshot.loanId, { pd: snapshot.pd, lgd: snapshot.lgd })
+      }
+    })
+    return map
+  }, [snapshots])
+
+  // Aggregate state data for heat map using actual snapshot data
   const stateData: StateData[] = useMemo(() => {
     const filteredLoans = loans.filter(
       (loan) => selectedSegments.length === 0 || selectedSegments.includes(loan.segment)
@@ -43,9 +56,10 @@ export default function GeographicPage() {
       if (!stateAggregates[loan.state]) {
         stateAggregates[loan.state] = { pds: [], lgds: [], portfolioValues: [], count: 0 }
       }
-      // Use mock PD/LGD based on segment
-      const pd = Math.random() * 0.1 + 0.01
-      const lgd = Math.random() * 0.4 + 0.2
+      // Use actual PD/LGD from snapshots for consistency
+      const snapshotData = latestSnapshotMap.get(loan.loanId)
+      const pd = snapshotData?.pd || 0.03
+      const lgd = snapshotData?.lgd || 0.40
       stateAggregates[loan.state].pds.push(pd)
       stateAggregates[loan.state].lgds.push(lgd)
       stateAggregates[loan.state].portfolioValues.push(loan.currentBalance)
@@ -59,7 +73,7 @@ export default function GeographicPage() {
       portfolioValue: data.portfolioValues.reduce((a, b) => a + b, 0),
       loanCount: data.count,
     }))
-  }, [loans, selectedSegments])
+  }, [loans, selectedSegments, latestSnapshotMap])
 
   // Get historical data for selected state
   const stateHistoricalData = useMemo(() => {
