@@ -5,7 +5,6 @@ import { Header } from '@/components/layout/Header'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { LoanTypeFilter } from '@/components/filters/LoanTypeFilter'
 import { TimeSeriesChart } from '@/components/charts/TimeSeriesChart'
 import { DataPreviewSheet } from '@/components/data-viewer/DataPreviewSheet'
 import { generateAllMacroData } from '@/lib/fred'
@@ -38,8 +37,86 @@ const macroIndicators: MacroIndicator[] = [
   'GDPC1',
 ]
 
+// Segment-specific correlation coefficients (based on loan characteristics)
+const SEGMENT_CORRELATIONS: Record<LoanSegment, Record<MacroIndicator, { correlation: number; lag: number }>> = {
+  RESIDENTIAL_1_4: {
+    UNRATE: { correlation: 0.65, lag: 1 },
+    FEDFUNDS: { correlation: 0.35, lag: 5 },
+    GS10: { correlation: 0.40, lag: 2 },
+    MORTGAGE30US: { correlation: 0.72, lag: 1 },
+    CPIAUCSL: { correlation: 0.25, lag: 2 },
+    GDPC1: { correlation: -0.55, lag: 3 },
+  },
+  CRE_NON_OWNER: {
+    UNRATE: { correlation: 0.78, lag: 1 },
+    FEDFUNDS: { correlation: 0.52, lag: 5 },
+    GS10: { correlation: 0.48, lag: 2 },
+    MORTGAGE30US: { correlation: 0.45, lag: 1 },
+    CPIAUCSL: { correlation: 0.35, lag: 2 },
+    GDPC1: { correlation: -0.62, lag: 3 },
+  },
+  CRE_OWNER: {
+    UNRATE: { correlation: 0.70, lag: 1 },
+    FEDFUNDS: { correlation: 0.48, lag: 5 },
+    GS10: { correlation: 0.42, lag: 2 },
+    MORTGAGE30US: { correlation: 0.40, lag: 1 },
+    CPIAUCSL: { correlation: 0.30, lag: 2 },
+    GDPC1: { correlation: -0.58, lag: 3 },
+  },
+  C_AND_I: {
+    UNRATE: { correlation: 0.82, lag: 1 },
+    FEDFUNDS: { correlation: 0.60, lag: 4 },
+    GS10: { correlation: 0.45, lag: 2 },
+    MORTGAGE30US: { correlation: 0.30, lag: 2 },
+    CPIAUCSL: { correlation: 0.40, lag: 2 },
+    GDPC1: { correlation: -0.70, lag: 2 },
+  },
+  CONSUMER: {
+    UNRATE: { correlation: 0.85, lag: 0 },
+    FEDFUNDS: { correlation: 0.45, lag: 3 },
+    GS10: { correlation: 0.35, lag: 2 },
+    MORTGAGE30US: { correlation: 0.35, lag: 2 },
+    CPIAUCSL: { correlation: 0.55, lag: 1 },
+    GDPC1: { correlation: -0.65, lag: 2 },
+  },
+  AUTO: {
+    UNRATE: { correlation: 0.75, lag: 1 },
+    FEDFUNDS: { correlation: 0.48, lag: 4 },
+    GS10: { correlation: 0.38, lag: 2 },
+    MORTGAGE30US: { correlation: 0.32, lag: 2 },
+    CPIAUCSL: { correlation: 0.42, lag: 2 },
+    GDPC1: { correlation: -0.60, lag: 3 },
+  },
+  MULTIFAMILY: {
+    UNRATE: { correlation: 0.60, lag: 2 },
+    FEDFUNDS: { correlation: 0.52, lag: 5 },
+    GS10: { correlation: 0.55, lag: 2 },
+    MORTGAGE30US: { correlation: 0.58, lag: 1 },
+    CPIAUCSL: { correlation: 0.28, lag: 3 },
+    GDPC1: { correlation: -0.50, lag: 3 },
+  },
+  CONSTRUCTION: {
+    UNRATE: { correlation: 0.88, lag: 1 },
+    FEDFUNDS: { correlation: 0.65, lag: 4 },
+    GS10: { correlation: 0.52, lag: 2 },
+    MORTGAGE30US: { correlation: 0.55, lag: 1 },
+    CPIAUCSL: { correlation: 0.38, lag: 2 },
+    GDPC1: { correlation: -0.75, lag: 2 },
+  },
+}
+
+// Portfolio-wide average correlations (weighted average)
+const PORTFOLIO_CORRELATIONS: Record<MacroIndicator, { correlation: number; lag: number }> = {
+  UNRATE: { correlation: 0.72, lag: 1 },
+  FEDFUNDS: { correlation: 0.45, lag: 5 },
+  GS10: { correlation: 0.38, lag: 2 },
+  MORTGAGE30US: { correlation: 0.52, lag: 1 },
+  CPIAUCSL: { correlation: 0.31, lag: 2 },
+  GDPC1: { correlation: -0.59, lag: 3 },
+}
+
 export default function MacroPage() {
-  const [selectedSegments, setSelectedSegments] = useState<LoanSegment[]>(SEGMENT_IDS)
+  const [selectedSegment, setSelectedSegment] = useState<LoanSegment | 'all'>('all')
   const [selectedIndicator, setSelectedIndicator] = useState<MacroIndicator>('UNRATE')
   const [showDataPreview, setShowDataPreview] = useState(false)
   const [macroData, setMacroData] = useState<Record<MacroIndicator, MacroTimeSeries> | null>(null)
@@ -68,6 +145,24 @@ export default function MacroPage() {
 
   const loans = useMemo(() => getLoans(), [])
 
+  // Get the display name for the selected segment
+  const selectedSegmentLabel = useMemo(() => {
+    if (selectedSegment === 'all') return 'Portfolio'
+    return getSegmentLabel(selectedSegment)
+  }, [selectedSegment])
+
+  // Base PD multipliers for each segment
+  const segmentBaseMultipliers: Record<LoanSegment, number> = {
+    RESIDENTIAL_1_4: 0.5,
+    CRE_NON_OWNER: 1.2,
+    CRE_OWNER: 1.0,
+    C_AND_I: 1.3,
+    CONSUMER: 1.8,
+    AUTO: 0.9,
+    MULTIFAMILY: 0.7,
+    CONSTRUCTION: 1.5,
+  }
+
   // Generate segment-level metrics over time
   const segmentMetrics = useMemo(() => {
     const quarters = Array.from({ length: 20 }, (_, i) => {
@@ -76,21 +171,14 @@ export default function MacroPage() {
       return date.toISOString().split('T')[0]
     })
 
+    // If a specific segment is selected, only show that one
+    const segmentsToShow = selectedSegment === 'all' ? SEGMENT_IDS : [selectedSegment]
+
     return quarters.map((quarter, idx) => {
       const result: Record<string, any> = { period: quarter }
 
-      selectedSegments.forEach((segment) => {
-        // Generate realistic segment PD based on segment type
-        const baseMultiplier = {
-          RESIDENTIAL_1_4: 0.5,
-          CRE_NON_OWNER: 1.2,
-          CRE_OWNER: 1.0,
-          C_AND_I: 1.3,
-          CONSUMER: 1.8,
-          AUTO: 0.9,
-          MULTIFAMILY: 0.7,
-          CONSTRUCTION: 1.5,
-        }[segment] || 1
+      segmentsToShow.forEach((segment) => {
+        const baseMultiplier = segmentBaseMultipliers[segment] || 1
 
         // Add economic cycle effect
         const cycleEffect = idx >= 8 && idx <= 12 ? 1.4 : 1.0
@@ -102,12 +190,17 @@ export default function MacroPage() {
 
       return result
     })
-  }, [selectedSegments])
+  }, [selectedSegment])
 
   // Combine macro data with credit metrics for correlation view
   const correlationData = useMemo(() => {
     if (!macroData) return []
     const macroSeries = macroData[selectedIndicator]?.data || []
+
+    // Get the base multiplier for the selected segment
+    const baseMultiplier = selectedSegment === 'all'
+      ? 1.0
+      : segmentBaseMultipliers[selectedSegment] || 1.0
 
     return macroSeries.map((point, idx) => {
       const result: Record<string, any> = {
@@ -115,37 +208,36 @@ export default function MacroPage() {
         [selectedIndicator]: point.value,
       }
 
-      // Add portfolio average PD
+      // Add segment-specific PD (or portfolio average if 'all')
       const cycleFactor = idx >= 8 && idx <= 12 ? 1.3 : 1.0
-      result.portfolioPD = 0.04 * cycleFactor + Math.random() * 0.005
+      const basePD = 0.04 * baseMultiplier
+      result.segmentPD = basePD * cycleFactor + Math.random() * 0.005
 
       return result
     })
-  }, [macroData, selectedIndicator])
+  }, [macroData, selectedIndicator, selectedSegment])
 
-  // Calculate correlations
+  // Calculate correlations based on selected segment
   const correlations = useMemo(() => {
+    // Get the correlation source based on selection
+    const corrSource = selectedSegment === 'all'
+      ? PORTFOLIO_CORRELATIONS
+      : SEGMENT_CORRELATIONS[selectedSegment]
+
     return macroIndicators.map((indicator) => {
-      const data = macroData?.[indicator]?.data || []
-      // Simulate correlation coefficient
-      const baseCorr = {
-        UNRATE: 0.72,
-        FEDFUNDS: 0.45,
-        GS10: 0.38,
-        MORTGAGE30US: 0.52,
-        CPIAUCSL: 0.28,
-        GDPC1: -0.58,
-      }[indicator] || 0
+      const corrData = corrSource[indicator]
+      // Add small random variation for realism
+      const correlation = corrData.correlation + (Math.random() - 0.5) * 0.05
 
       return {
         indicator,
         name: MACRO_INDICATOR_INFO[indicator].name,
-        correlation: baseCorr + (Math.random() - 0.5) * 0.1,
+        correlation,
         pValue: Math.random() * 0.05,
-        lagMonths: Math.floor(Math.random() * 6),
+        lagMonths: corrData.lag,
       }
     })
-  }, [macroData])
+  }, [macroData, selectedSegment])
 
   if (isLoading) {
     return (
@@ -178,9 +270,28 @@ export default function MacroPage() {
       />
 
       <div className="p-6 space-y-6">
-        {/* Filters */}
+        {/* Segment Selector */}
         <div className="flex flex-wrap items-center gap-4">
-          <LoanTypeFilter value={selectedSegments} onChange={setSelectedSegments} />
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Segment:</span>
+            <select
+              value={selectedSegment}
+              onChange={(e) => setSelectedSegment(e.target.value as LoanSegment | 'all')}
+              className="px-4 py-2 rounded-lg bg-muted border border-border text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <option value="all">Full Portfolio</option>
+              {SEGMENT_IDS.map((segment) => (
+                <option key={segment} value={segment}>
+                  {getSegmentLabel(segment)}
+                </option>
+              ))}
+            </select>
+          </div>
+          {selectedSegment !== 'all' && (
+            <div className="px-3 py-1 rounded-full text-xs font-medium bg-primary/20 text-primary">
+              Showing correlations for {selectedSegmentLabel}
+            </div>
+          )}
         </div>
 
         {/* Correlation Summary Cards */}
@@ -219,7 +330,7 @@ export default function MacroPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Activity className="h-5 w-5" />
-                {MACRO_INDICATOR_INFO[selectedIndicator].name} vs Portfolio PD
+                {MACRO_INDICATOR_INFO[selectedIndicator].name} vs {selectedSegmentLabel} PD
               </CardTitle>
               <CardDescription>
                 Correlation: r = {correlations.find((c) => c.indicator === selectedIndicator)?.correlation.toFixed(2)}
@@ -280,9 +391,9 @@ export default function MacroPage() {
                     <Line
                       yAxisId="pd"
                       type="monotone"
-                      dataKey="portfolioPD"
-                      name="Portfolio PD"
-                      stroke="#3b82f6"
+                      dataKey="segmentPD"
+                      name={`${selectedSegmentLabel} PD`}
+                      stroke={selectedSegment === 'all' ? '#3b82f6' : getSegmentColor(selectedSegment)}
                       strokeWidth={2}
                       dot={false}
                     />
@@ -297,10 +408,13 @@ export default function MacroPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <TrendingUp className="h-5 w-5" />
-                PD Trends by Segment
+                {selectedSegment === 'all' ? 'PD Trends by Segment' : `${selectedSegmentLabel} PD Trend`}
               </CardTitle>
               <CardDescription>
-                Historical probability of default by loan type
+                {selectedSegment === 'all'
+                  ? 'Historical probability of default by loan type'
+                  : `Historical probability of default for ${selectedSegmentLabel}`
+                }
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -329,17 +443,31 @@ export default function MacroPage() {
                       formatter={(value: number) => [formatPercent(value), '']}
                     />
                     <Legend />
-                    {selectedSegments.slice(0, 5).map((segment) => (
+                    {selectedSegment === 'all' ? (
+                      // Show top 5 segments when viewing full portfolio
+                      SEGMENT_IDS.slice(0, 5).map((segment) => (
+                        <Line
+                          key={segment}
+                          type="monotone"
+                          dataKey={`${segment}_pd`}
+                          name={getSegmentLabel(segment)}
+                          stroke={getSegmentColor(segment)}
+                          strokeWidth={2}
+                          dot={false}
+                        />
+                      ))
+                    ) : (
+                      // Show only the selected segment
                       <Line
-                        key={segment}
+                        key={selectedSegment}
                         type="monotone"
-                        dataKey={`${segment}_pd`}
-                        name={getSegmentLabel(segment)}
-                        stroke={getSegmentColor(segment)}
+                        dataKey={`${selectedSegment}_pd`}
+                        name={selectedSegmentLabel}
+                        stroke={getSegmentColor(selectedSegment)}
                         strokeWidth={2}
                         dot={false}
                       />
-                    ))}
+                    )}
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -350,9 +478,9 @@ export default function MacroPage() {
         {/* Correlation Matrix */}
         <Card>
           <CardHeader>
-            <CardTitle>Correlation Analysis</CardTitle>
+            <CardTitle>Correlation Analysis: {selectedSegmentLabel}</CardTitle>
             <CardDescription>
-              Statistical relationship between macroeconomic indicators and credit metrics
+              Statistical relationship between macroeconomic indicators and {selectedSegmentLabel.toLowerCase()} credit metrics
             </CardDescription>
           </CardHeader>
           <CardContent>

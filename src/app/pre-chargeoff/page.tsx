@@ -64,36 +64,42 @@ function generateWarningSignals(histories: ChargeOffLoanHistory[]) {
   return [
     {
       signal: 'PD exceeds 2x baseline',
+      description: 'Probability of default has doubled from origination - earliest warning sign of deteriorating credit quality',
       avgMonthsBefore: 18,
       prevalence: 78,
       segment: 'All',
     },
     {
       signal: 'First 30+ DPD occurrence',
+      description: 'Loan becomes 30+ days past due for the first time - strong predictor of future delinquency',
       avgMonthsBefore: 15,
       prevalence: 85,
       segment: 'All',
     },
     {
       signal: 'LGD increase >20%',
+      description: 'Loss severity estimate increased significantly, often due to collateral value decline or market conditions',
       avgMonthsBefore: 12,
       prevalence: 62,
       segment: 'CRE',
     },
     {
       signal: 'Payment pattern change',
+      description: 'Borrower shifts from regular to irregular payments - partial payments, late payments, or skipped months',
       avgMonthsBefore: 12,
       prevalence: 71,
       segment: 'Consumer',
     },
     {
       signal: 'PD exceeds 10%',
+      description: 'Very high default probability threshold - loan has entered high-risk territory requiring immediate attention',
       avgMonthsBefore: 9,
       prevalence: 92,
       segment: 'All',
     },
     {
       signal: 'Consecutive missed payments',
+      description: 'Multiple payments missed in a row - late-stage warning indicating severe borrower distress',
       avgMonthsBefore: 6,
       prevalence: 88,
       segment: 'All',
@@ -325,35 +331,65 @@ export default function PreChargeOffPage() {
                 Common indicators observed before charge-off
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              {/* Explanation Box */}
+              <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                <p className="text-sm">
+                  <span className="font-semibold text-blue-400">How to read this:</span>{' '}
+                  Each signal below was observed in loans that eventually charged off. The{' '}
+                  <span className="text-warning font-semibold">yellow number</span> shows how many months
+                  before charge-off the signal typically appeared. The{' '}
+                  <span className="font-semibold">percentage</span> indicates how often this signal
+                  was present in charged-off loans. Use these patterns to identify at-risk loans early.
+                </p>
+              </div>
+
               <div className="space-y-3">
                 {warningSignals.map((signal, idx) => (
                   <div
                     key={idx}
-                    className="flex items-center gap-4 p-3 rounded-lg bg-muted/50"
+                    className="p-3 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors"
                   >
-                    <div className="flex-shrink-0 w-12 h-12 rounded-full bg-warning/10 flex items-center justify-center">
-                      <span className="text-lg font-bold text-warning">
-                        -{signal.avgMonthsBefore}
-                      </span>
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-medium">{signal.signal}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {signal.segment !== 'All' && `${signal.segment} - `}
-                        {signal.prevalence}% of charged-off loans
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-warning rounded-full"
-                          style={{ width: `${signal.prevalence}%` }}
-                        />
+                    <div className="flex items-center gap-4">
+                      <div className="flex-shrink-0 w-12 h-12 rounded-full bg-warning/10 flex items-center justify-center" title={`Typically appears ${signal.avgMonthsBefore} months before charge-off`}>
+                        <span className="text-lg font-bold text-warning">
+                          -{signal.avgMonthsBefore}
+                        </span>
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">{signal.signal}</p>
+                          {signal.segment !== 'All' && (
+                            <span className="px-2 py-0.5 text-xs rounded bg-primary/20 text-primary">
+                              {signal.segment}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {signal.description}
+                        </p>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-sm font-semibold">{signal.prevalence}%</p>
+                        <div className="w-16 h-2 bg-muted rounded-full overflow-hidden mt-1" title={`${signal.prevalence}% of charged-off loans showed this signal`}>
+                          <div
+                            className="h-full bg-warning rounded-full"
+                            style={{ width: `${signal.prevalence}%` }}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
                 ))}
+              </div>
+
+              {/* Action guidance */}
+              <div className="pt-3 border-t border-border">
+                <p className="text-xs text-muted-foreground">
+                  <span className="font-medium">Recommended action:</span> Monitor current portfolio
+                  for loans exhibiting these signals. Earlier signals (higher negative numbers) provide
+                  more time for intervention strategies such as loan modifications or enhanced monitoring.
+                </p>
               </div>
             </CardContent>
           </Card>

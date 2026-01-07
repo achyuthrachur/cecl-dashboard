@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run build:*)",
+      "Bash(powershell -Command \"cd ''c:\\\\Users\\\\rachura\\\\OneDrive - Crowe LLP\\\\VS Code Programming Projects\\\\cecl-dashboard''; npm run build 2>&1 | Select-Object -First 60\")"
+    ]
+  }
+}

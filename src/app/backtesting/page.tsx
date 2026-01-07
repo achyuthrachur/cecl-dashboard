@@ -5,6 +5,8 @@ import { Header } from '@/components/layout/Header'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { DataPreviewSheet } from '@/components/data-viewer/DataPreviewSheet'
+import { SEGMENT_IDS, getSegmentLabel, getSegmentColor } from '@/data/segments'
+import type { LoanSegment } from '@/types'
 import { formatCurrency, formatPercent } from '@/lib/utils'
 import {
   Target,
@@ -14,6 +16,13 @@ import {
   CheckCircle,
   XCircle,
 } from 'lucide-react'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   ComposedChart,
   Line,
@@ -28,8 +37,87 @@ import {
   Cell,
 } from 'recharts'
 
+// Segment-specific base loss amounts and model accuracy characteristics
+const SEGMENT_BACKTEST_CONFIG: Record<LoanSegment, {
+  baseLoss: number
+  portfolioSize: number
+  modelAccuracy: number // 0-1, how accurate the model is for this segment
+  volatility: number // How volatile the actual losses are
+  stressSensitivity: number // How much stress periods affect this segment
+}> = {
+  RESIDENTIAL_1_4: {
+    baseLoss: 800000,
+    portfolioSize: 150000000,
+    modelAccuracy: 0.92,
+    volatility: 0.15,
+    stressSensitivity: 1.2,
+  },
+  CRE_NON_OWNER: {
+    baseLoss: 1200000,
+    portfolioSize: 180000000,
+    modelAccuracy: 0.78,
+    volatility: 0.35,
+    stressSensitivity: 1.5,
+  },
+  CRE_OWNER: {
+    baseLoss: 600000,
+    portfolioSize: 120000000,
+    modelAccuracy: 0.82,
+    volatility: 0.28,
+    stressSensitivity: 1.4,
+  },
+  C_AND_I: {
+    baseLoss: 900000,
+    portfolioSize: 140000000,
+    modelAccuracy: 0.75,
+    volatility: 0.40,
+    stressSensitivity: 1.6,
+  },
+  CONSUMER: {
+    baseLoss: 400000,
+    portfolioSize: 60000000,
+    modelAccuracy: 0.88,
+    volatility: 0.20,
+    stressSensitivity: 1.3,
+  },
+  AUTO: {
+    baseLoss: 350000,
+    portfolioSize: 55000000,
+    modelAccuracy: 0.90,
+    volatility: 0.18,
+    stressSensitivity: 1.25,
+  },
+  MULTIFAMILY: {
+    baseLoss: 500000,
+    portfolioSize: 100000000,
+    modelAccuracy: 0.85,
+    volatility: 0.22,
+    stressSensitivity: 1.2,
+  },
+  CONSTRUCTION: {
+    baseLoss: 700000,
+    portfolioSize: 80000000,
+    modelAccuracy: 0.70,
+    volatility: 0.45,
+    stressSensitivity: 1.8,
+  },
+}
+
+// Portfolio-wide config (weighted average)
+const PORTFOLIO_BACKTEST_CONFIG = {
+  baseLoss: 2500000,
+  portfolioSize: 50000000,
+  modelAccuracy: 0.82,
+  volatility: 0.25,
+  stressSensitivity: 1.3,
+}
+
 // Generate synthetic backtesting data
-function generateBacktestingData() {
+function generateBacktestingData(segment: LoanSegment | 'all') {
+  const config = segment === 'all'
+    ? PORTFOLIO_BACKTEST_CONFIG
+    : SEGMENT_BACKTEST_CONFIG[segment]
+
   const quarters = []
   for (let year = 2020; year <= 2024; year++) {
     for (let q = 1; q <= 4; q++) {
@@ -38,13 +126,23 @@ function generateBacktestingData() {
     }
   }
 
+  // Use a seeded random for consistency per segment
+  let seed = segment === 'all' ? 42 : SEGMENT_IDS.indexOf(segment as LoanSegment) * 100 + 42
+  const seededRandom = () => {
+    seed = (seed * 9301 + 49297) % 233280
+    return seed / 233280
+  }
+
   return quarters.map((period, idx) => {
     // Base predicted loss with seasonal variation
-    const basePredicted = 2500000 + Math.sin(idx / 2) * 500000
+    const seasonalFactor = 1 + Math.sin(idx / 2) * 0.2
+    const basePredicted = config.baseLoss * seasonalFactor
 
-    // Actual losses with more volatility
-    const stressFactor = idx >= 8 && idx <= 12 ? 1.3 : 1.0
-    const baseActual = basePredicted * stressFactor * (0.85 + Math.random() * 0.3)
+    // Actual losses with segment-specific volatility
+    const stressFactor = idx >= 8 && idx <= 12 ? config.stressSensitivity : 1.0
+    const modelError = (seededRandom() - 0.5) * 2 * config.volatility
+    const accuracyFactor = config.modelAccuracy + (1 - config.modelAccuracy) * modelError
+    const baseActual = basePredicted * stressFactor * accuracyFactor
 
     const predicted = Math.round(basePredicted)
     const actual = Math.round(baseActual)
@@ -57,8 +155,8 @@ function generateBacktestingData() {
       actual,
       variance,
       variancePercent,
-      reserveRatio: predicted / (50000000 + idx * 2000000),
-      chargeOffRate: actual / (50000000 + idx * 2000000),
+      reserveRatio: predicted / (config.portfolioSize + idx * 2000000),
+      chargeOffRate: actual / (config.portfolioSize + idx * 2000000),
     }
   })
 }
@@ -87,10 +185,16 @@ function calculateMetrics(data: ReturnType<typeof generateBacktestingData>) {
 
 export default function BacktestingPage() {
   const [showDataPreview, setShowDataPreview] = useState(false)
+  const [selectedSegment, setSelectedSegment] = useState<LoanSegment | 'all'>('all')
 
-  // Generate data
-  const backtestData = useMemo(() => generateBacktestingData(), [])
+  // Generate data based on selected segment
+  const backtestData = useMemo(() => generateBacktestingData(selectedSegment), [selectedSegment])
   const metrics = useMemo(() => calculateMetrics(backtestData), [backtestData])
+
+  // Get display name for current selection
+  const segmentDisplayName = selectedSegment === 'all'
+    ? 'Full Portfolio'
+    : getSegmentLabel(selectedSegment)
 
   // Summary stats
   const totalPredicted = backtestData.reduce((sum, d) => sum + d.predicted, 0)
@@ -106,6 +210,42 @@ export default function BacktestingPage() {
       />
 
       <div className="p-6 space-y-6">
+        {/* Segment Selector */}
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-muted-foreground">Segment:</span>
+            <Select
+              value={selectedSegment}
+              onValueChange={(value) => setSelectedSegment(value as LoanSegment | 'all')}
+            >
+              <SelectTrigger className="w-[220px]">
+                <SelectValue placeholder="Select segment" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Full Portfolio</SelectItem>
+                {SEGMENT_IDS.map((segment) => (
+                  <SelectItem key={segment} value={segment}>
+                    {getSegmentLabel(segment)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {selectedSegment !== 'all' && (
+            <div className="text-sm text-muted-foreground">
+              Model accuracy for this segment:{' '}
+              <span className="font-medium">
+                {(SEGMENT_BACKTEST_CONFIG[selectedSegment].modelAccuracy * 100).toFixed(0)}%
+              </span>
+              {' · '}
+              Volatility:{' '}
+              <span className="font-medium">
+                {(SEGMENT_BACKTEST_CONFIG[selectedSegment].volatility * 100).toFixed(0)}%
+              </span>
+            </div>
+          )}
+        </div>
+
         {/* Key Metrics */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           <Card glass className="metric-card">
@@ -183,9 +323,9 @@ export default function BacktestingPage() {
         {/* Main Chart */}
         <Card glass>
           <CardHeader>
-            <CardTitle>Predicted vs Actual Losses</CardTitle>
+            <CardTitle>Predicted vs Actual Losses — {segmentDisplayName}</CardTitle>
             <CardDescription>
-              Quarterly comparison of model predictions against realized charge-offs
+              Quarterly comparison of model predictions against realized charge-offs for {segmentDisplayName.toLowerCase()}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -235,9 +375,9 @@ export default function BacktestingPage() {
           {/* Variance Chart */}
           <Card glass>
             <CardHeader>
-              <CardTitle>Prediction Variance</CardTitle>
+              <CardTitle>Prediction Variance — {segmentDisplayName}</CardTitle>
               <CardDescription>
-                Percentage difference between predicted and actual
+                Percentage difference between predicted and actual for {segmentDisplayName.toLowerCase()}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -283,9 +423,9 @@ export default function BacktestingPage() {
           {/* Summary Stats */}
           <Card glass>
             <CardHeader>
-              <CardTitle>Cumulative Performance</CardTitle>
+              <CardTitle>Cumulative Performance — {segmentDisplayName}</CardTitle>
               <CardDescription>
-                Overall model performance across the backtesting period
+                Overall model performance across the backtesting period for {segmentDisplayName.toLowerCase()}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -352,9 +492,9 @@ export default function BacktestingPage() {
         {/* Detail Table */}
         <Card>
           <CardHeader>
-            <CardTitle>Quarterly Detail</CardTitle>
+            <CardTitle>Quarterly Detail — {segmentDisplayName}</CardTitle>
             <CardDescription>
-              Period-by-period backtesting results
+              Period-by-period backtesting results for {segmentDisplayName.toLowerCase()}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -404,8 +544,8 @@ export default function BacktestingPage() {
       <DataPreviewSheet
         open={showDataPreview}
         onClose={() => setShowDataPreview(false)}
-        title="Backtesting Data"
-        description="Predicted vs actual loss comparison by quarter"
+        title={`Backtesting Data — ${segmentDisplayName}`}
+        description={`Predicted vs actual loss comparison by quarter for ${segmentDisplayName.toLowerCase()}`}
         data={backtestData}
         columns={[
           { key: 'period', label: 'Period', format: 'text' },
